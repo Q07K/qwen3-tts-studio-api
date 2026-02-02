@@ -6,4 +6,5 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "fastapi[standard]>=0.128.0",
+    "qwen-tts>=0.0.5",
 ]
