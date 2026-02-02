@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "fastapi[standard]>=0.128.0",
+    "pydub>=0.25.1",
     "qwen-tts>=0.0.5",
     "soundfile>=0.13.1",
 ]
