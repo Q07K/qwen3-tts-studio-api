@@ -1,6 +1,7 @@
-def main():
-    print("Hello from qwen3-tts-studio-api!")
+from fastapi import FastAPI
 
+from app.routers import voices
 
-if __name__ == "__main__":
-    main()
+app = FastAPI()
+
+app.include_router(prefix="/api/voices", router=voices.router)
