@@ -58,11 +58,12 @@ def convert_audio_to_wav(
 @router.post("/save")
 async def clone_voice(
     name: str = Form(...),
-    audio_file: UploadFile = File(...),
+    reference_audio: UploadFile = File(...),
+    reference_text: str = Form(...),
 ):
-    reference_audio = await audio_file.read()
+    reference_audio_bytes = await reference_audio.read()
     reference_wav, sample_rate = convert_audio_to_wav(
-        reference_audio, audio_file.content_type
+        reference_audio_bytes, reference_audio.content_type
     )
 
     # Save to temp file as workaround for library bug with tuple input
@@ -73,7 +74,9 @@ async def clone_voice(
     model = get_tts_model()
     prompt = model.create_voice_clone_prompt(
         ref_audio=tmp_path,
-        x_vector_only_mode=True,  # Don't require transcript
+        ref_text=reference_text,
+        # x_vector_only_mode=True,  # Don't require transcript
+        x_vector_only_mode=False,  # Use custom VoiceClonePromptItem class
     )
 
     # Clean up temp file
