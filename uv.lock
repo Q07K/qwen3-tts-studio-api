@@ -2322,12 +2322,14 @@ source = { virtual = "." }
 dependencies = [
     { name = "fastapi", extra = ["standard"] },
     { name = "qwen-tts" },
+    { name = "soundfile" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "fastapi", extras = ["standard"], specifier = ">=0.128.0" },
     { name = "qwen-tts", specifier = ">=0.0.5" },
+    { name = "soundfile", specifier = ">=0.13.1" },
 ]
 
 [[package]]
