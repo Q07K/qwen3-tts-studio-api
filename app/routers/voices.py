@@ -90,7 +90,7 @@ async def get_voices():
     return [f.stem for f in STORAGE_DIR.iterdir() if f.suffix == ".pt"]
 
 
-@router.get("/generate")
+@router.post("/generate")
 async def generate_cloned_tts(
     text: str, voice_name: str, language: str = "Korean"
 ):
