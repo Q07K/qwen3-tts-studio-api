@@ -166,6 +166,30 @@ ffmpeg -version
 
 설치 후에는 터미널을 재시작해야 합니다.
 
+### Windows에서 "Couldn't find ffmpeg" 오류
+
+winget으로 FFmpeg를 설치해도 PATH에 자동으로 추가되지 않습니다.
+
+**1. FFmpeg 설치 확인:**
+```powershell
+winget install --id Gyan.FFmpeg -e --source winget
+```
+
+**2. PATH에 FFmpeg 추가 (영구 설정):**
+```powershell
+[Environment]::SetEnvironmentVariable("PATH", $env:PATH + ";$env:LOCALAPPDATA\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.0.1-full_build\bin", "User")
+```
+
+**3. 터미널 재시작 후 확인:**
+```powershell
+ffmpeg -version
+```
+
+> ⚠️ FFmpeg 버전이 다를 경우, 실제 설치 경로를 확인하세요:
+> ```powershell
+> Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\Gyan.FFmpeg*" -Recurse -Filter "ffmpeg.exe" | Select-Object FullName
+> ```
+
 ### 메모리 부족 오류
 
 모델 로딩에 약 8-16GB RAM이 필요합니다. 메모리가 부족한 경우:
