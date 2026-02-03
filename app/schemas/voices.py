@@ -6,10 +6,17 @@ from pydantic import BaseModel, Field
 class VoiceLanguageEnum(str, Enum):
     """Enumeration of supported voice languages."""
 
-    KOREAN = "Korean"
-    ENGLISH = "English"
-    JAPANESE = "Japanese"
-    CHINESE = "Chinese"
+    AUTO = "auto"
+    KOREAN = "korean"
+    ENGLISH = "english"
+    JAPANESE = "japanese"
+    CHINESE = "chinese"
+    FRENCH = "french"
+    GERMAN = "german"
+    ITALIAN = "italian"
+    PORTUGUESE = "portuguese"
+    RUSSIAN = "russian"
+    SPANISH = "spanish"
 
 
 class VoiceGenerateRequest(BaseModel):
