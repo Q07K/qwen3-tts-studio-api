@@ -107,7 +107,9 @@ async def generate_cloned_tts(data: VoiceGenerateRequest):
         raise HTTPException(status_code=404, detail="Voice profile not found")
 
     buffer = await services.text_to_speech_generation(
-        voice_clone_path=file_path, text=data.text, language=data.language
+        voice_clone_path=file_path,
+        text=data.text,
+        language=data.language.value,
     )
     return StreamingResponse(content=buffer, media_type="audio/wav")
 
@@ -138,7 +140,9 @@ async def batch_generate_cloned_tts(
         raise HTTPException(status_code=404, detail="Voice profile not found")
 
     buffers = await services.batch_text_to_speech_generation(
-        voice_clone_path=file_path, texts=data.texts, language=data.language
+        voice_clone_path=file_path,
+        texts=data.texts,
+        language=data.language.value,
     )
     return [
         StreamingResponse(content=buffer, media_type="audio/wav")
