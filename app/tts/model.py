@@ -2,12 +2,15 @@ from functools import lru_cache
 
 from qwen_tts import Qwen3TTSModel
 
-model = Qwen3TTSModel.from_pretrained(
-    "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
-    device_map="cuda",
-)
+_model: Qwen3TTSModel | None = None
 
 
-@lru_cache
 def get_tts_model() -> Qwen3TTSModel:
-    return model
+    """Lazy load the TTS model to avoid memory issues during startup."""
+    global _model
+    if _model is None:
+        _model = Qwen3TTSModel.from_pretrained(
+            "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+            device_map="cuda",
+        )
+    return _model
