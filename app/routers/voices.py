@@ -1,3 +1,4 @@
+import base64
 import tempfile
 from pathlib import Path
 
@@ -117,7 +118,7 @@ async def generate_cloned_tts(data: VoiceGenerateRequest):
 @router.post("/generate/batch", response_model=None)
 async def batch_generate_cloned_tts(
     data: BatchVoiceGenerateRequest,
-):
+) -> dict:
     """Generate TTS audio using a voice clone profile.
 
     Parameters
@@ -127,8 +128,8 @@ async def batch_generate_cloned_tts(
 
     Returns
     -------
-    list[StreamingResponse]
-        List of streaming responses containing the generated audio.
+    dict
+        Dictionary containing list of base64-encoded audio data.
 
     Raises
     ------
@@ -144,7 +145,12 @@ async def batch_generate_cloned_tts(
         texts=data.texts,
         language=data.language.value,
     )
-    return [
-        StreamingResponse(content=buffer, media_type="audio/wav")
-        for buffer in buffers
-    ]
+    return {
+        "audio_files": [
+            {
+                "data": base64.b64encode(buffer.getvalue()).decode("utf-8"),
+                "media_type": "audio/wav",
+            }
+            for buffer in buffers
+        ]
+    }
