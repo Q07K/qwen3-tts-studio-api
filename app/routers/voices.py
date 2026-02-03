@@ -1,14 +1,12 @@
-import io
 import tempfile
 from pathlib import Path
 
 import soundfile
-import torch
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app import services
-from app.tts.model import get_tts_model
+from app.schemas.voices import BatchVoiceGenerateRequest, VoiceGenerateRequest
 from app.utils.audio import convert_audio_to_wav
 
 STORAGE_DIR = Path("voice_profiles")
@@ -27,7 +25,7 @@ async def clone_voice(
     name: str = Form(...),
     reference_audio: UploadFile = File(...),
     reference_text: str = Form(...),
-):
+) -> dict[str, str]:
     reference_audio_bytes = await reference_audio.read()
 
     # Debug logging
@@ -73,33 +71,76 @@ async def clone_voice(
 
 
 @router.get("/list")
-async def get_voices():
+async def get_voices() -> list[str]:
+    """Retrieve the list of saved voice clone profiles.
+
+    Returns
+    -------
+    list[str]
+        List of voice clone profile names.
+    """
     # 폴더 내 .pt 파일 목록 반환
     return [f.stem for f in STORAGE_DIR.iterdir() if f.suffix == ".pt"]
 
 
-@router.get("/generate")
-async def generate_cloned_tts(
-    text: str, voice_name: str, language: str = "Korean"
-):
-    file_path = STORAGE_DIR / f"{voice_name}.pt"
+@router.post("/generate")
+async def generate_cloned_tts(data: VoiceGenerateRequest) -> StreamingResponse:
+    """Generate TTS audio using a voice clone profile.
+
+    Parameters
+    ----------
+    data : VoiceGenerateRequest
+        Voice generation request data.
+
+    Returns
+    -------
+    StreamingResponse
+        Streaming response containing the generated audio.
+
+    Raises
+    ------
+    HTTPException
+        Raised when the specified voice profile is not found.
+    """
+    file_path = STORAGE_DIR / f"{data.voice_name}.pt"
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Voice profile not found")
 
-    # 저장된 특징 벡터 로드 (weights_only=False for custom VoiceClonePromptItem class)
-    voice_clone_prompt = torch.load(
-        file_path, map_location="cpu", weights_only=False
+    buffer = await services.text_to_speech_generation(
+        voice_clone_path=file_path, text=data.text, language=data.language
     )
+    return StreamingResponse(content=buffer, media_type="audio/wav")
 
-    # generate_voice_clone
-    model = get_tts_model()
-    wavs, sr = model.generate_voice_clone(
-        text=text,
-        voice_clone_prompt=voice_clone_prompt,
-        language=language,
+
+@router.post("/generate/batch")
+async def batch_generate_cloned_tts(
+    data: BatchVoiceGenerateRequest,
+) -> list[StreamingResponse]:
+    """Generate TTS audio using a voice clone profile.
+
+    Parameters
+    ----------
+    data : BatchVoiceGenerateRequest
+        Voice generation request data.
+
+    Returns
+    -------
+    list[StreamingResponse]
+        List of streaming responses containing the generated audio.
+
+    Raises
+    ------
+    HTTPException
+        Raised when the specified voice profile is not found.
+    """
+    file_path = STORAGE_DIR / f"{data.voice_name}.pt"
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Voice profile not found")
+
+    buffers = await services.batch_text_to_speech_generation(
+        voice_clone_path=file_path, texts=data.texts, language=data.language
     )
-
-    buffer = io.BytesIO()
-    soundfile.write(buffer, wavs[0], sr, format="WAV")
-    buffer.seek(0)
-    return StreamingResponse(buffer, media_type="audio/wav")
+    return [
+        StreamingResponse(content=buffer, media_type="audio/wav")
+        for buffer in buffers
+    ]
