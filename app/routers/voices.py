@@ -83,8 +83,8 @@ async def get_voices() -> list[str]:
     return [f.stem for f in STORAGE_DIR.iterdir() if f.suffix == ".pt"]
 
 
-@router.post("/generate")
-async def generate_cloned_tts(data: VoiceGenerateRequest) -> StreamingResponse:
+@router.post("/generate", response_model=None)
+async def generate_cloned_tts(data: VoiceGenerateRequest):
     """Generate TTS audio using a voice clone profile.
 
     Parameters
@@ -112,10 +112,10 @@ async def generate_cloned_tts(data: VoiceGenerateRequest) -> StreamingResponse:
     return StreamingResponse(content=buffer, media_type="audio/wav")
 
 
-@router.post("/generate/batch")
+@router.post("/generate/batch", response_model=None)
 async def batch_generate_cloned_tts(
     data: BatchVoiceGenerateRequest,
-) -> list[StreamingResponse]:
+):
     """Generate TTS audio using a voice clone profile.
 
     Parameters
