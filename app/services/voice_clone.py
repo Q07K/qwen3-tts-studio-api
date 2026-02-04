@@ -25,7 +25,7 @@ async def save_voice_clone(
     """
     model = get_tts_model()
     prompt = model.create_voice_clone_prompt(
-        ref_audio=tmp_path,
+        ref_audio=str(tmp_path),
         ref_text=reference_text,
         # x_vector_only_mode=True,  # Don't require transcript
         x_vector_only_mode=False,  # Use custom VoiceClonePromptItem class
