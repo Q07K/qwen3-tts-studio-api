@@ -3,8 +3,10 @@ import tempfile
 from pathlib import Path
 
 import soundfile
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, Body
 from fastapi.responses import StreamingResponse, FileResponse
+import os
+import time
 
 from app import services
 from app.schemas.voices import BatchVoiceGenerateRequest, VoiceGenerateRequest
@@ -56,17 +58,27 @@ async def clone_voice(
             f"Please provide at least {MIN_AUDIO_DURATION_SECONDS}s of audio for voice cloning.",
         )
 
+    # Cleanly truncate audio if it is extremely long to prevent OOM / hanging
+    MAX_AUDIO_DURATION_SECONDS = 30.0
+    if audio_duration > MAX_AUDIO_DURATION_SECONDS:
+        print(f"[INFO] Truncating audio from {audio_duration:.2f}s to {MAX_AUDIO_DURATION_SECONDS}s")
+        max_samples = int(MAX_AUDIO_DURATION_SECONDS * sample_rate)
+        reference_wav = reference_wav[:max_samples]
+
     # Save to temp file as workaround for library bug with tuple input
+    print(f"[DEBUG] Saving temp wav file: {audio_duration:.2f}s")
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
         soundfile.write(tmp.name, reference_wav, sample_rate)
         tmp_path = tmp.name
 
+    print(f"[DEBUG] Calling services.save_voice_clone with {tmp_path}")
     await services.save_voice_clone(
         base_path=STORAGE_DIR,
         voice_name=name,
         reference_text=reference_text,
         tmp_path=Path(tmp_path),
     )
+    print(f"[DEBUG] services.save_voice_clone returned")
 
     # Clean up temp file
     Path(tmp_path).unlink(missing_ok=True)
@@ -238,3 +250,101 @@ async def delete_voice(name: str) -> dict[str, str]:
         preview_path.unlink()
 
     return {"status": "success", "message": f"Voice profile '{name}' deleted"}
+
+
+@router.put("/{name}/rename")
+async def rename_voice(name: str, new_name: str = Body(..., embed=True)) -> dict[str, str]:
+    """Rename a voice profile.
+
+    Parameters
+    ----------
+    name : str
+        Current name of the voice profile.
+    new_name : str
+        New name for the voice profile.
+
+    Returns
+    -------
+    dict[str, str]
+        Status message and new name.
+
+    Raises
+    ------
+    HTTPException
+        If profile not found or new name already exists.
+    """
+    current_profile_path = STORAGE_DIR / f"{name}.pt"
+    new_profile_path = STORAGE_DIR / f"{new_name}.pt"
+    
+    current_preview_path = STORAGE_DIR / f"{name}_preview.wav"
+    new_preview_path = STORAGE_DIR / f"{new_name}_preview.wav"
+
+    if not current_profile_path.exists():
+        raise HTTPException(status_code=404, detail="Voice profile not found")
+        
+    if new_profile_path.exists():
+        raise HTTPException(status_code=400, detail=f"Voice profile '{new_name}' already exists")
+
+    # Rename profile
+    current_profile_path.rename(new_profile_path)
+    
+    # Rename preview if exists
+    if current_preview_path.exists():
+        current_preview_path.rename(new_preview_path)
+
+    return {"status": "success", "name": new_name}
+
+
+@router.get("/{name}/export")
+async def export_voice(name: str):
+    """Export a voice profile as a .pt file.
+
+    Parameters
+    ----------
+    name : str
+        Name of the voice profile to export.
+
+    Returns
+    -------
+    FileResponse
+        The .pt file.
+    """
+    profile_path = STORAGE_DIR / f"{name}.pt"
+    
+    if not profile_path.exists():
+        raise HTTPException(status_code=404, detail="Voice profile not found")
+
+    return FileResponse(
+        path=profile_path,
+        media_type="application/octet-stream",
+        filename=f"{name}.pt",
+    )
+
+
+@router.get("/{name}/details")
+async def get_voice_details(name: str) -> dict:
+    """Get details of a voice profile.
+
+    Parameters
+    ----------
+    name : str
+        Name of the voice profile.
+
+    Returns
+    -------
+    dict
+        Dictionary containing file size, creation time, etc.
+    """
+    profile_path = STORAGE_DIR / f"{name}.pt"
+    
+    if not profile_path.exists():
+        raise HTTPException(status_code=404, detail="Voice profile not found")
+
+    stats = profile_path.stat()
+    
+    return {
+        "name": name,
+        "size_bytes": stats.st_size,
+        "created_at": stats.st_ctime,
+        "modified_at": stats.st_mtime,
+    }
