@@ -22,6 +22,16 @@ for _ffmpeg_dir in _ffmpeg_path.glob("Gyan.FFmpeg*"):
         AudioSegment.ffprobe = str(_bin_path / "ffprobe.exe")
         break
 
-app = FastAPI()
+from contextlib import asynccontextmanager
+from app.tts.model import get_tts_model
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("[INFO] Preloading TTS model...")
+    get_tts_model()
+    print("[INFO] TTS model loaded.")
+    yield
+
+app = FastAPI(lifespan=lifespan)
 
 app.include_router(prefix="/api/voices", router=voices.router)
