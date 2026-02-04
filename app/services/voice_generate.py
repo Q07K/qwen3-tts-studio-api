@@ -5,6 +5,8 @@ from pathlib import Path
 
 import soundfile
 import torch
+import functools  # Explicit import though it was used in replacement block context
+from fastapi.concurrency import run_in_threadpool
 
 from app.tts.model import get_tts_model
 
@@ -30,15 +32,51 @@ async def text_to_speech_generation(
     io.BytesIO
         Audio data in WAV format as a BytesIO object.
     """
-    voice_clone_prompt = torch.load(
-        voice_clone_path, map_location=DEVICE, weights_only=False
-    )
-    model = get_tts_model()
+import functools
+from fastapi.concurrency import run_in_threadpool
 
+# Cache recently used voice prompts to avoid disk I/O and deserialization overhead
+@functools.lru_cache(maxsize=10)
+def load_voice_prompt(path: Path):
+    return torch.load(path, map_location=DEVICE, weights_only=False)
+
+
+def _generate_sync(voice_clone_prompt, text, language):
+    model = get_tts_model()
     audio_waveforms, sample_rate = model.generate_voice_clone(
         text=text,
         voice_clone_prompt=voice_clone_prompt,
         language=language,
+    )
+    return audio_waveforms, sample_rate
+
+
+async def text_to_speech_generation(
+    voice_clone_path: Path, text: str, language: str = "Korean"
+) -> io.BytesIO:
+    """Generate TTS audio using a voice clone profile.
+
+    Parameters
+    ----------
+    voice_clone_path : Path
+        Path to the voice clone profile file.
+    text : str
+        Text to be synthesized.
+    language : str, optional
+        Language of the text, by default "Korean"
+
+    Returns
+    -------
+    io.BytesIO
+        Audio data in WAV format as a BytesIO object.
+    """
+    # Load prompt (cached)
+    # Using run_in_threadpool for load might be overkill if cached, but safe for first load
+    voice_clone_prompt = await run_in_threadpool(load_voice_prompt, voice_clone_path)
+
+    # Run inference in threadpool to avoid blocking the async event loop
+    audio_waveforms, sample_rate = await run_in_threadpool(
+        _generate_sync, voice_clone_prompt, text, language
     )
 
     buffer = io.BytesIO()
@@ -70,16 +108,13 @@ async def batch_text_to_speech_generation(
     list[io.BytesIO]
         List of audio data in WAV format as BytesIO objects.
     """
-    voice_clone_prompt = torch.load(
-        voice_clone_path, map_location=DEVICE, weights_only=False
-    )
-    model = get_tts_model()
+    voice_clone_prompt = await run_in_threadpool(load_voice_prompt, voice_clone_path)
 
     languages = [language] * len(texts)
-    audio_waveforms, sample_rate = model.generate_voice_clone(
-        text=texts,
-        voice_clone_prompt=voice_clone_prompt,
-        language=languages,
+    
+    # Run inference in threadpool
+    audio_waveforms, sample_rate = await run_in_threadpool(
+        _generate_sync, voice_clone_prompt, texts, languages
     )
 
     buffers: list[io.BytesIO] = []
