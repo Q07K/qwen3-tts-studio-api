@@ -70,6 +70,15 @@ def convert_audio_to_wav(
         # Try soundfile for wav, flac, ogg, etc.
         audio_buffer.seek(0)
         wav_data, sample_rate = soundfile.read(audio_buffer)
+
+        # Ensure mono
+        if len(wav_data.shape) > 1 and wav_data.shape[1] > 1:
+            wav_data = np.mean(wav_data, axis=1)
+
+        # Ensure float32
+        if wav_data.dtype != np.float32:
+            wav_data = wav_data.astype(np.float32)
+
         return wav_data, sample_rate
     except Exception:
         # Fall back to pydub for unknown formats (let pydub auto-detect)
