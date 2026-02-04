@@ -4,7 +4,7 @@ from pathlib import Path
 
 import soundfile
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 
 from app import services
 from app.schemas.voices import BatchVoiceGenerateRequest, VoiceGenerateRequest
@@ -12,6 +12,9 @@ from app.utils.audio import convert_audio_to_wav
 
 STORAGE_DIR = Path("voice_profiles")
 STORAGE_DIR.mkdir(exist_ok=True)
+
+# 테스트 음성 텍스트 (한국어)
+TEST_PREVIEW_TEXT = "이것은 테스트 음성입니다."
 
 router = APIRouter()
 
@@ -154,3 +157,84 @@ async def batch_generate_cloned_tts(
             for buffer in buffers
         ]
     }
+
+
+@router.get("/{name}/preview", response_model=None)
+async def get_voice_preview(name: str):
+    """Get or generate a preview audio for a voice profile.
+
+    If a preview audio file exists, return it. Otherwise, generate one
+    using the test text and save it for future use.
+
+    Parameters
+    ----------
+    name : str
+        Name of the voice profile.
+
+    Returns
+    -------
+    FileResponse
+        The preview audio file.
+
+    Raises
+    ------
+    HTTPException
+        Raised when the specified voice profile is not found.
+    """
+    profile_path = STORAGE_DIR / f"{name}.pt"
+    preview_path = STORAGE_DIR / f"{name}_preview.wav"
+
+    if not profile_path.exists():
+        raise HTTPException(status_code=404, detail="Voice profile not found")
+
+    # 프리뷰 파일이 없으면 생성
+    if not preview_path.exists():
+        buffer = await services.text_to_speech_generation(
+            voice_clone_path=profile_path,
+            text=TEST_PREVIEW_TEXT,
+            language="korean",
+        )
+        # 파일로 저장
+        with open(preview_path, "wb") as f:
+            f.write(buffer.getvalue())
+
+    return FileResponse(
+        path=preview_path,
+        media_type="audio/wav",
+        filename=f"{name}_preview.wav",
+    )
+
+
+@router.delete("/{name}")
+async def delete_voice(name: str) -> dict[str, str]:
+    """Delete a voice profile and its associated files.
+
+    Parameters
+    ----------
+    name : str
+        Name of the voice profile to delete.
+
+    Returns
+    -------
+    dict[str, str]
+        Status message.
+
+    Raises
+    ------
+    HTTPException
+        Raised when the specified voice profile is not found.
+    """
+    profile_path = STORAGE_DIR / f"{name}.pt"
+    preview_path = STORAGE_DIR / f"{name}_preview.wav"
+
+    if not profile_path.exists():
+        raise HTTPException(status_code=404, detail="Voice profile not found")
+
+    # 프로필 파일 삭제
+    profile_path.unlink()
+
+    # 프리뷰 파일도 있으면 삭제
+    if preview_path.exists():
+        preview_path.unlink()
+
+    return {"status": "success", "message": f"Voice profile '{name}' deleted"}
