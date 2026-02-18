@@ -48,6 +48,8 @@ def _generate_sync(voice_clone_prompt, text, language):
         voice_clone_prompt=voice_clone_prompt,
         language=language,
     )
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     return audio_waveforms, sample_rate
 
 
